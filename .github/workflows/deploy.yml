@@ -6,6 +6,9 @@ on:
 
 jobs:
   deploy:
+    defaults:
+      run:
+        working-directory: pf2e-hud
     runs-on: ubuntu-latest
     permissions:
       contents: read
