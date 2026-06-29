@@ -13,11 +13,7 @@
   "action": {
     "title": "PF2e HUD",
     "icon": "/icons/pf2e-icon.svg",
-    "popover": {
-      "url": "/",
-      "height": 580,
-      "width": 340
-    }
+    "popover": "/index.html"
   },
   "permissions": ["OBR_READ_PLAYER", "OBR_WRITE_PLAYER"]
 }
