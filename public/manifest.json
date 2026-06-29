@@ -1,4 +1,5 @@
 {
+  "manifest_version": 1,
   "author": "PF2e HUD",
   "name": "PF2e HUD",
   "description": "Pathfinder 2e condition tracker and action economy HUD for players and GMs.",
