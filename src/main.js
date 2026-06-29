@@ -15,15 +15,18 @@ let state = {
   slowedValue: 0,
   stunnedValue: 0,
   conditions: {},   // { conditionId: number (value or 1 for simple) }
+  persistentDamage: [], // [{ id, type, amount }]
   round: 1,
 
   // GM-only state (stored in OBR room metadata)
-  gmChars: [],           // [{ id, name, conditions: {}, actions: [], reactionUsed: bool }]
+  gmChars: [],           // [{ id, name, conditions: {}, actions: [], reactionUsed: bool, persistentDamage: [] }]
   selectedGmCharId: null,
 
-  // UI
+  // UI / Transient
   activeTab: "actions",
   conditionSearch: "",
+  pdType: "Bleed",
+  pdAmount: "1d6",
   isGM: false,
 };
 
@@ -73,25 +76,27 @@ async function loadPlayerState() {
 }
 
 function mergePlayerState(meta) {
-  state.charName     = meta.charName     ?? state.charName;
-  state.actions      = meta.actions      ?? state.actions;
-  state.reactionUsed = meta.reactionUsed ?? state.reactionUsed;
-  state.slowedValue  = meta.slowedValue  ?? state.slowedValue;
-  state.stunnedValue = meta.stunnedValue ?? state.stunnedValue;
-  state.conditions   = meta.conditions   ?? state.conditions;
-  state.round        = meta.round        ?? state.round;
+  state.charName         = meta.charName         ?? state.charName;
+  state.actions          = meta.actions          ?? state.actions;
+  state.reactionUsed     = meta.reactionUsed     ?? state.reactionUsed;
+  state.slowedValue      = meta.slowedValue      ?? state.slowedValue;
+  state.stunnedValue     = meta.stunnedValue     ?? state.stunnedValue;
+  state.conditions       = meta.conditions       ?? state.conditions;
+  state.persistentDamage = meta.persistentDamage ?? state.persistentDamage;
+  state.round            = meta.round            ?? state.round;
 }
 
 async function savePlayerState() {
   await OBR.player.setMetadata({
     [PLAYER_META_KEY]: {
-      charName:     state.charName,
-      actions:      state.actions,
-      reactionUsed: state.reactionUsed,
-      slowedValue:  state.slowedValue,
-      stunnedValue: state.stunnedValue,
-      conditions:   state.conditions,
-      round:        state.round,
+      charName:         state.charName,
+      actions:          state.actions,
+      reactionUsed:     state.reactionUsed,
+      slowedValue:      state.slowedValue,
+      stunnedValue:     state.stunnedValue,
+      conditions:       state.conditions,
+      persistentDamage: state.persistentDamage,
+      round:            state.round,
     },
   });
 }
@@ -152,6 +157,9 @@ function addCondition(id) {
   savePlayerState();
 }
 
+// ─── GM Condition helpers ─────────────────────────────────────────────────────
+function getGMChar(id) { return state.gmChars.find(c => c.id === id); }
+
 function removeCondition(id) {
   delete state.conditions[id];
   savePlayerState();
@@ -169,9 +177,6 @@ function decrementCondition(id) {
   }
   savePlayerState();
 }
-
-// ─── GM Condition helpers ─────────────────────────────────────────────────────
-function getGMChar(id) { return state.gmChars.find(c => c.id === id); }
 
 function addGMCondition(charId, condId) {
   const char = getGMChar(charId);
@@ -201,9 +206,25 @@ function decGMCondition(charId, condId) {
 
 // ─── Render ──────────────────────────────────────────────────────────────────
 function render() {
+  // Capture active input element and selections to maintain focus layout
+  const activeId = document.activeElement ? document.activeElement.id : null;
+  const selectionStart = activeId ? document.activeElement.selectionStart : null;
+  const selectionEnd = activeId ? document.activeElement.selectionEnd : null;
+
   const app = document.getElementById("app");
   app.innerHTML = buildApp();
   attachListeners();
+
+  // Safely return focus and cursor positioning back to the active element
+  if (activeId) {
+    const activeEl = document.getElementById(activeId);
+    if (activeEl) {
+      activeEl.focus();
+      if (selectionStart !== null && selectionEnd !== null && typeof activeEl.setSelectionRange === "function") {
+        activeEl.setSelectionRange(selectionStart, selectionEnd);
+      }
+    }
+  }
 }
 
 function buildApp() {
@@ -281,14 +302,12 @@ function buildActionsTab() {
 
   return `
     <div class="action-panel">
-      <!-- Character name -->
       <div class="char-name-row">
         <input class="char-name-input" id="charNameInput"
           placeholder="Enter your character's name…"
           value="${escHtml(state.charName)}" />
       </div>
 
-      <!-- Round counter -->
       <div class="round-row">
         <div class="round-label">Round</div>
         <button class="mod-stepper round-stepper" data-dec-round title="Decrease round">−</button>
@@ -297,7 +316,6 @@ function buildActionsTab() {
         <button class="reset-btn" data-reset-turn title="End turn: reset actions, drop frightened, reduce stun/slow">End Turn</button>
       </div>
 
-      <!-- Actions row -->
       <div>
         <div class="action-row" style="margin-bottom:8px">
           <div class="action-label">Actions</div>
@@ -309,27 +327,66 @@ function buildActionsTab() {
         </div>
       </div>
 
-      <!-- Slowed / Stunned modifiers -->
       <div class="action-modifiers">
         <div class="mod-label">Slowed</div>
         <div class="mod-control">
-          <button class="mod-stepper" data-dec-slowed>−</button>
+          <button class="mod-stepper" data-dec-slowed">−</button>
           <div class="mod-value">${state.slowedValue}</div>
-          <button class="mod-stepper" data-inc-slowed>+</button>
+          <button class="mod-stepper" data-inc-slowed">+</button>
         </div>
         <div style="width:1px;background:var(--border);height:18px;margin:0 8px"></div>
         <div class="mod-label">Stunned</div>
         <div class="mod-control">
-          <button class="mod-stepper" data-dec-stunned>−</button>
+          <button class="mod-stepper" data-dec-stunned">−</button>
           <div class="mod-value">${state.stunnedValue}</div>
-          <button class="mod-stepper" data-inc-stunned>+</button>
+          <button class="mod-stepper" data-inc-stunned">+</button>
         </div>
       </div>
 
-      <!-- Active conditions summary -->
       <div>
         <div class="section-label" style="padding:4px 0 6px">Active Conditions</div>
         <div class="active-conditions">${chipHTML}</div>
+      </div>
+
+      ${buildPersistentDamageSection(state.persistentDamage, false)}
+    </div>
+  `;
+}
+
+// ─── Persistent Damage Tracker Component ─────────────────────────────────────
+function buildPersistentDamageSection(pdArray, isGM, gmCharId = null) {
+  const list = pdArray || [];
+  const chips = list.length === 0
+    ? `<span class="active-conditions-empty">No persistent damage</span>`
+    : list.map(pd => {
+        const removeAttr = isGM
+          ? `data-gm-remove-pd="${pd.id}" data-gm-char="${gmCharId}"`
+          : `data-remove-pd="${pd.id}"`;
+        return `
+          <div class="active-chip" style="background:rgba(231,76,60,0.15);border-color:rgba(231,76,60,0.6);color:#e74c3c">
+            <span class="active-chip-icon">💧</span>
+            <span class="active-chip-name"><strong>${escHtml(pd.type)}</strong>: ${escHtml(pd.amount)}</span>
+            <button class="active-chip-remove" ${removeAttr} title="Remove">×</button>
+          </div>`;
+      }).join("");
+
+  const typeId = isGM ? `gmPdType` : `pdType`;
+  const amountId = isGM ? `gmPdAmount` : `pdAmount`;
+  const btnAttr = isGM ? `data-gm-add-pd="${gmCharId}"` : `data-add-pd`;
+
+  const types = ["Bleed", "Acid", "Cold", "Electricity", "Fire", "Force", "Mental", "Poison", "Sonic", "Spirit"];
+  const options = types.map(t => `<option value="${t}" ${state.pdType === t ? "selected" : ""}>${t}</option>`).join("");
+
+  return `
+    <div class="pd-section" style="margin-top:12px; padding-top:10px; border-top:1px solid var(--border-light)">
+      <div class="section-label" style="padding:0 0 6px">Persistent Damage</div>
+      <div class="active-conditions" style="margin-bottom:6px; min-height: 32px;">${chips}</div>
+      <div style="display:flex;gap:6px">
+        <select class="char-name-input" id="${typeId}" style="flex:1;height:24px;padding:0 4px;font-size:11px;background:var(--bg-light);border:1px solid var(--border)">
+          ${options}
+        </select>
+        <input class="char-name-input" id="${amountId}" placeholder="e.g. 1d6" value="${escHtml(state.pdAmount)}" style="width:65px;height:24px;padding:0 4px;font-size:11px;text-align:center;background:var(--bg-light);border:1px solid var(--border)" />
+        <button class="cond-add-btn" ${btnAttr} style="height:24px;width:24px;line-height:20px;padding:0">+</button>
       </div>
     </div>
   `;
@@ -452,7 +509,7 @@ function buildGMTab() {
     ? `<div class="gm-empty">No characters tracked yet.<br>Add one below.</div>`
     : chars.map(char => {
         const activeIds = Object.keys(char.conditions ?? {});
-        const chips = activeIds.map(id => {
+        let chips = activeIds.map(id => {
           const cond = getCondition(id);
           if (!cond) return "";
           const val = char.conditions[id];
@@ -460,19 +517,28 @@ function buildGMTab() {
             ${cond.icon} ${cond.name}${cond.valued ? " " + val : ""}
           </span>`;
         }).join("");
+
+        // Also display persistent damage chips in GM tracking side rows
+        const pdChips = (char.persistentDamage || []).map(pd => {
+          return `<span class="gm-mini-chip" style="background:rgba(231,76,60,0.15);border-color:rgba(231,76,60,0.5);color:#e74c3c">💧 ${pd.type} ${pd.amount}</span>`;
+        }).join("");
+
         return `
           <div class="gm-char-row ${char.id === sel ? "selected" : ""}" data-select-char="${char.id}">
             <div style="flex:1">
               <div class="gm-char-name">${escHtml(char.name)}</div>
-              ${chips ? `<div class="gm-char-chips">${chips}</div>` : ""}
+              ${(chips || pdChips) ? `<div class="gm-char-chips">${chips}${pdChips}</div>` : ""}
             </div>
             <button class="gm-delete-btn" data-delete-char="${char.id}" title="Remove character">🗑</button>
           </div>`;
       }).join("");
 
   const condPanel = selChar
-    ? `<div class="section-label" style="margin-top:4px">Conditions — ${escHtml(selChar.name)}</div>
-       ${buildConditionsTab(selChar.conditions ?? {}, true, selChar.id)}`
+    ? `<div class="section-label" style="margin-top:4px">Conditions & FX — ${escHtml(selChar.name)}</div>
+       ${buildPersistentDamageSection(selChar.persistentDamage ?? [], true, selChar.id)}
+       <div style="margin-top: 10px;">
+         ${buildConditionsTab(selChar.conditions ?? {}, true, selChar.id)}
+       </div>`
     : `<div class="gm-empty" style="margin-top:12px">Select a character above<br>to manage their conditions.</div>`;
 
   return `
@@ -563,6 +629,33 @@ function attachListeners() {
     el.addEventListener("click", (e) => { e.stopPropagation(); decrementCondition(el.dataset.decCond); render(); });
   });
 
+  // Player Persistent Damage UI Listeners
+  const pdTypeEl = document.getElementById("pdType");
+  if (pdTypeEl) pdTypeEl.addEventListener("change", () => { state.pdType = pdTypeEl.value; });
+  
+  const pdAmountEl = document.getElementById("pdAmount");
+  if (pdAmountEl) pdAmountEl.addEventListener("input", () => { state.pdAmount = pdAmountEl.value; });
+
+  document.querySelector("[data-add-pd]")?.addEventListener("click", () => {
+    if (!state.persistentDamage) state.persistentDamage = [];
+    state.persistentDamage.push({
+      id: crypto.randomUUID(),
+      type: state.pdType,
+      amount: state.pdAmount || "1d6"
+    });
+    savePlayerState();
+    render();
+  });
+
+  document.querySelectorAll("[data-remove-pd]").forEach(el => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      state.persistentDamage = state.persistentDamage.filter(d => d.id !== el.dataset.removePd);
+      savePlayerState();
+      render();
+    });
+  });
+
   // GM: add character
   const gmAddBtn = document.getElementById("gmAddBtn");
   const gmAddInput = document.getElementById("gmAddInput");
@@ -570,7 +663,7 @@ function attachListeners() {
     const doAdd = () => {
       const name = gmAddInput.value.trim();
       if (!name) return;
-      state.gmChars.push({ id: crypto.randomUUID(), name, conditions: {}, actions: [false,false,false], reactionUsed: false });
+      state.gmChars.push({ id: crypto.randomUUID(), name, conditions: {}, actions: [false,false,false], reactionUsed: false, persistentDamage: [] });
       saveGMState();
       render();
     };
@@ -608,6 +701,41 @@ function attachListeners() {
   });
   document.querySelectorAll("[data-gm-dec-cond]").forEach(el => {
     el.addEventListener("click", (e) => { e.stopPropagation(); decGMCondition(el.dataset.gmChar, el.dataset.gmDecCond); render(); });
+  });
+
+  // GM Persistent Damage UI Listeners
+  const gmPdTypeEl = document.getElementById("gmPdType");
+  if (gmPdTypeEl) gmPdTypeEl.addEventListener("change", () => { state.pdType = gmPdTypeEl.value; });
+  
+  const gmPdAmountEl = document.getElementById("gmPdAmount");
+  if (gmPdAmountEl) gmPdAmountEl.addEventListener("input", () => { state.pdAmount = gmPdAmountEl.value; });
+
+  document.querySelectorAll("[data-gm-add-pd]").forEach(el => {
+    el.addEventListener("click", () => {
+      const charId = el.dataset.gmAddPd;
+      const char = getGMChar(charId);
+      if (!char) return;
+      if (!char.persistentDamage) char.persistentDamage = [];
+      char.persistentDamage.push({
+        id: crypto.randomUUID(),
+        type: state.pdType,
+        amount: state.pdAmount || "1d6"
+      });
+      saveGMState();
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-gm-remove-pd]").forEach(el => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const charId = el.dataset.gmChar;
+      const char = getGMChar(charId);
+      if (!char || !char.persistentDamage) return;
+      char.persistentDamage = char.persistentDamage.filter(d => d.id !== el.dataset.gmRemovePd);
+      saveGMState();
+      render();
+    });
   });
 }
 
