@@ -7,7 +7,7 @@
   "version": "1.0.0",
   "action": {
     "title": "PF2e HUD",
-    "icon": "/icons/pf2e-icon.svg",
-    "popover": "index.html"
+    "icon": "https://iophenim.github.io/pf2e-hud-owlbear/icons/pf2e-icon.svg",
+    "popover": "https://iophenim.github.io/pf2e-hud-owlbear/index.html"
   }
 }
