@@ -6,9 +6,6 @@ on:
 
 jobs:
   deploy:
-    defaults:
-      run:
-        working-directory: pf2e-hud/dist
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -26,6 +23,6 @@ jobs:
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: dist # Just 'dist' now, because it will be created at the top level!
       - id: deployment
         uses: actions/deploy-pages@v4
