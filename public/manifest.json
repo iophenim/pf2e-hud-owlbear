@@ -8,6 +8,6 @@
   "action": {
     "title": "PF2e HUD",
     "icon": "/icons/pf2e-icon.svg",
-    "popover": "/index.html"
+    "popover": "index.html"
   }
 }
