@@ -8,6 +8,8 @@
   "action": {
     "title": "PF2e HUD",
     "icon": "https://iophenim.github.io/pf2e-hud-owlbear/icons/pf2e-icon.svg",
-    "popover": "https://iophenim.github.io/pf2e-hud-owlbear/index.html"
+    "popover": "https://iophenim.github.io/pf2e-hud-owlbear/index.html",
+    "width": 600,
+    "height": 500
   }
 }
