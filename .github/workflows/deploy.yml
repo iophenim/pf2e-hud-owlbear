@@ -8,7 +8,7 @@ jobs:
   deploy:
     defaults:
       run:
-        working-directory: pf2e-hud
+        working-directory: pf2e-hud/dist
     runs-on: ubuntu-latest
     permissions:
       contents: read
