@@ -5,11 +5,6 @@
   "description": "Pathfinder 2e condition tracker and action economy HUD for players and GMs.",
   "icon": "/icons/pf2e-icon.svg",
   "version": "1.0.0",
-  "listing": {
-    "name": "PF2e HUD",
-    "description": "Track conditions and the 3-action economy for Pathfinder 2e directly inside Owlbear Rodeo.",
-    "author": "PF2e HUD"
-  },
   "action": {
     "title": "PF2e HUD",
     "icon": "/icons/pf2e-icon.svg",
